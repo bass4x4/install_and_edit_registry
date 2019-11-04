@@ -15,10 +15,12 @@ import javax.crypto.NoSuchPaddingException;
 import javax.swing.*;
 import java.awt.*;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.security.*;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -84,14 +86,15 @@ public class InstallationWindow {
     }
 
     private boolean insertDigitalSignatureIntoRegistry() {
-        String cypheredInfo = getCypheredInfo();
-        if (cypheredInfo.isEmpty()) {
+        byte[] cypheredInfo = getCypheredInfo();
+        if (cypheredInfo.length == 0) {
             System.exit(-1);
         }
-        String text = registryKeyField.getText();
+        String registryKey = registryKeyField.getText();
 
-        if (!text.isEmpty()) {
-            Advapi32Util.registrySetStringValue(WinReg.HKEY_CURRENT_USER, "Software", text, cypheredInfo);
+        if (!registryKey.isEmpty()) {
+            String base64Info = new String(Base64.getEncoder().encode(cypheredInfo));
+            Advapi32Util.registrySetStringValue(WinReg.HKEY_CURRENT_USER, "Software", registryKey, base64Info);
             return true;
         } else {
             JOptionPane.showMessageDialog(null, "Выберите название раздела реестра!", "Ошибка!", JOptionPane.ERROR_MESSAGE);
@@ -99,26 +102,23 @@ public class InstallationWindow {
         }
     }
 
-    private String getCypheredInfo() {
+    private byte[] getCypheredInfo() {
         String info = getInfo();
 
-        MessageDigest mdHashFunction = null;
         try {
-            mdHashFunction = MessageDigest.getInstance("MD2");
-            String hashedInfo = new String(mdHashFunction.digest(info.getBytes()));
+            MessageDigest mdHashFunction = MessageDigest.getInstance("MD2");
+            byte[] digest = mdHashFunction.digest(info.getBytes());
 
-            Cipher cipher = Cipher.getInstance("RSA");
+            Cipher cipher = Cipher.getInstance("RSA/ECB/NoPadding");
             KeyPairGenerator keyGen = KeyPairGenerator.getInstance("RSA");
             keyGen.initialize(1024);
             KeyPair pair = keyGen.generateKeyPair();
             PrivateKey privateKey = pair.getPrivate();
             PublicKey publicKey = pair.getPublic();
 
-            cipher.init(Cipher.ENCRYPT_MODE, privateKey);
-            byte[] cypheredInfo = cipher.doFinal(hashedInfo.getBytes());
-
-            writePublicKeyToFile(new String(publicKey.getEncoded()));
-            return new String(cypheredInfo);
+            cipher.init(Cipher.ENCRYPT_MODE, publicKey);
+            writePublicKeyToFile(privateKey.getEncoded());
+            return cipher.doFinal(digest);
         } catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException | IllegalBlockSizeException e) {
             JOptionPane.showMessageDialog(null, e.getMessage());
             System.exit(1);
@@ -126,9 +126,7 @@ public class InstallationWindow {
             JOptionPane.showMessageDialog(null, "Wrong passphrase!");
             System.exit(1);
         }
-//        cipher.init(Cipher.DECRYPT_MODE, );
-//        byte[] y = cipher.doFinal( x );
-        return "";
+        return null;
     }
 
     private String getInfo() {
@@ -151,11 +149,12 @@ public class InstallationWindow {
                 .toString();
     }
 
-
-    private void writePublicKeyToFile(String publicKey) {
+    private void writePublicKeyToFile(byte[] publicKey) {
         File publicKeyFile = new File(installationPath + "\\publicKey.txt");
         try {
-            Files.write(publicKey, publicKeyFile, Charsets.UTF_8);
+            FileOutputStream fileOutputStream = new FileOutputStream(publicKeyFile);
+            fileOutputStream.write(publicKey);
+            fileOutputStream.close();
         } catch (IOException e) {
             JOptionPane.showMessageDialog(null, "Ошибка при создании файла с открытым ключом!", "Ошибка!", JOptionPane.ERROR_MESSAGE);
             System.exit(-1);
