@@ -48,9 +48,7 @@ public class InstallationWindow {
                 this.installationPath = installationPath;
             }
         });
-        installButton.addActionListener(actionEvent -> {
-            installProgram();
-        });
+        installButton.addActionListener(actionEvent -> installProgram());
     }
 
     private void installProgram() {
@@ -151,6 +149,7 @@ public class InstallationWindow {
 
     private void writePublicKeyToFile(byte[] publicKey) {
         File publicKeyFile = new File(installationPath + "\\publicKey.txt");
+
         try {
             FileOutputStream fileOutputStream = new FileOutputStream(publicKeyFile);
             fileOutputStream.write(publicKey);
@@ -245,7 +244,7 @@ public class InstallationWindow {
                 .map(jarPath -> installationPath + jarPath)
                 .collect(Collectors.toList());
 
-        String jarPaths = installationPath + "\\lab-one-ankushev-1.0-SNAPSHOT;" + String.join(";", jarPathsList);
+        String jarPaths = installationPath + "\\lab-one-ankushev-1.0-SNAPSHOT.jar;" + String.join(";", jarPathsList);
 
         String scriptText = String.format("java -cp %s Backend.App", jarPaths);
 
